@@ -1,0 +1,87 @@
+# Singularity Recipe for Avida4
+# Austin Ferguson 11/4/2019
+
+
+#### TODO ####
+# (Maybe) Modify .cfg to route output through /output/
+
+# Fetch the base for Ubuntu version 16.04 
+Bootstrap: docker
+From: ubuntu:16.04
+
+# Create all necessary folders for copying files to container
+%setup 
+    mkdir ${SINGULARITY_ROOTFS}/boost
+    mkdir ${SINGULARITY_ROOTFS}/staging
+    mkdir ${SINGULARITY_ROOTFS}/output
+    mkdir ${SINGULARITY_ROOTFS}/research
+    mkdir ${SINGULARITY_ROOTFS}/usr/local/clang_9.0.0
+
+# Copy boost, clang, and modified configuration / build files
+%files
+    ./staging/site-config.jam /staging/site-config.jam
+    ./staging/Jamfile /staging/Jamfile
+
+# Run on the container after all files copied over
+%post
+    # Update apt lists and grab a few essential tools
+    apt update
+    apt install -y build-essential
+    apt install -y zlib1g-dev
+    apt install -y git
+    apt install -y wget
+
+    # Set up environment vars for new clang
+    export PATH="/usr/local/clang_9.0.0/bin:$PATH" 
+    export LD_LIBRARY_PATH="/usr/local/clang_9.0.0/lib:$LD_LIBRARY_PATH"
+    wget http://releases.llvm.org/9.0.0/clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz -O clang.tar.xz 
+    tar -xJf clang.tar.xz 
+    cp clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04/* /usr/local/clang_9.0.0 -r
+    clang++ --version
+
+    # Install boost, just like:
+    # https://github.com/dknoester/ealib/blob/master/INSTALL.md
+    cd /boost/
+    wget https://dl.bintray.com/boostorg/release/1.71.0/source/boost_1_71_0.tar.gz
+    tar -xzf boost_1_71_0.tar.gz
+    cd boost_1_71_0
+    cd tools/build
+    ./bootstrap.sh --with-toolset=clang
+    ./b2 install --toolset=clang
+    cp src/contrib/boost.jam /usr/local/share/boost-build/src/tools/boost.jam 
+    cd ../..
+    ./bootstrap.sh --with-toolset=clang --with-libraries=filesystem,iostreams,program_options,regex,serialization,system,test,timer --without-icu
+    ./b2 > b2_out.txt
+    ./b2 install
+    export BOOST_BUILD_PATH="/usr/local/share/boost-build"
+    # Copy over modified site-config.jam
+    cp /staging/site-config.jam /usr/local/share/boost-build/site-config.jam
+
+    # Download ealib + avida, and compile avida
+    cd /research
+    git clone https://github.com/dknoester/ealib
+    cp /staging/Jamfile /research/ealib/libea/Jamfile
+    git clone https://github.com/dknoester/avida4
+    cd /research/avida4
+    b2  
+
+    # Uninstall some things to make image smaller (I'm sure there's more we could purge..."
+    apt remove --purge -y build-essential
+    apt remove --purge -y git
+    apt remove --purge -y wget
+    rm /boost/boost_1_71_0.tar.gz  
+    rm /boost/boost_1_71_0.tar.gz /clang/*    
+    rm /var/lib/apt/lists/*
+
+# Environment variables set in post are not saved for subsequent runs
+# Therefore we define those here
+%environment
+    export PATH="/usr/local/clang_9.0.0/bin:$PATH" 
+    export LD_LIBRARY_PATH="/usr/local/clang_9.0.0/lib:$LD_LIBRARY_PATH" 
+    export BOOST_BUILD_PATH="/usr/local/share/boost-build"
+
+# This executes when user executes the image in the terminal
+# Here, we just run the major transitions avida project, passing all arguments along
+%runscript
+    echo "Arguments received: $*"
+    /research/avida4/bin/clang-linux-9.0.0/debug/link-static/mt -c /research/avida4/etc/major_transitions.cfg $*

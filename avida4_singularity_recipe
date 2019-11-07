@@ -72,8 +72,8 @@ From: ubuntu:16.04
     apt remove --purge -y git
     apt remove --purge -y wget
     rm /boost/boost_1_71_0.tar.gz  
-    rm /clang/*    
-    rm /var/lib/apt/lists/*
+    rm /var/lib/apt/lists/* -r
+    rm /clang/* -r   
 
 # Environment variables set in post are not saved for subsequent runs
 # Therefore we define those here

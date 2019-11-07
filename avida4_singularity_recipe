@@ -12,6 +12,7 @@ From: ubuntu:16.04
 # Create all necessary folders for copying files to container
 %setup 
     mkdir ${SINGULARITY_ROOTFS}/boost
+    mkdir ${SINGULARITY_ROOTFS}/clang
     mkdir ${SINGULARITY_ROOTFS}/staging
     mkdir ${SINGULARITY_ROOTFS}/output
     mkdir ${SINGULARITY_ROOTFS}/research
@@ -32,6 +33,7 @@ From: ubuntu:16.04
     apt install -y wget
 
     # Set up environment vars for new clang
+    cd /clang/
     export PATH="/usr/local/clang_9.0.0/bin:$PATH" 
     export LD_LIBRARY_PATH="/usr/local/clang_9.0.0/lib:$LD_LIBRARY_PATH"
     wget http://releases.llvm.org/9.0.0/clang+llvm-9.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz -O clang.tar.xz 
